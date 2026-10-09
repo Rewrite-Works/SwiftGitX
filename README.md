@@ -51,6 +51,34 @@ The documentation for `releases` and `main` are available here:
 * [0.x.x](https://swiftpackageindex.com/ibrahimcetin/SwiftGitX/~/documentation/SwiftGitX)
 * [`main`](https://swiftpackageindex.com/ibrahimcetin/SwiftGitX/main/documentation/SwiftGitX)
 
+## Push strategies
+
+The existing `push()` method uses normal Git push rules: it accepts fast-forward updates and rejects non-fast-forward updates. The explicit branch overload also supports `.force` for unconditional forced updates and `.forceWithLease(expectedOID:)` for a forced update guarded by the destination's expected object ID.
+
+Capture and retain the remote branch's object ID before rewriting local history. A remote-tracking branch can be used to obtain the initial value, but keep the resulting `OID` value; do not look up the tracking branch again after the rewrite.
+
+```swift
+let branch = try repository.branch.get(named: "feature")
+let remote = try repository.remote.get(named: "origin")
+
+// Save this before rebasing, amending, or otherwise rewriting `feature`.
+let expectedRemoteOID = try repository.branch.get(named: "origin/feature").target.id
+
+// Rewrite local history here.
+
+try await repository.push(
+    branch: branch,
+    to: remote,
+    strategy: .forceWithLease(expectedOID: expectedRemoteOID)
+)
+```
+
+Force-with-lease rejects a push if the remote advertises a different object ID or if the destination branch is missing. With smart Git transports, libgit2 includes the advertised old object ID in the update command, and receive-pack checks it as part of updating the ref. This protects against another writer changing the ref between negotiation and update when the server follows the Git receive-pack protocol. Local path remotes are rejected for this strategy because the bundled libgit2 local transport does not compare the expected old object ID atomically. Protected branches and other server policy can still reject an update.
+
+Use force-with-lease when publishing rewritten history so that a collaborator's newer remote commit is not silently overwritten. Plain `.force` does not provide this check.
+
+The implementation follows libgit2's [force-with-lease discussion](https://github.com/libgit2/libgit2/issues/3947) and uses `git_push_update.src` from the push negotiation callback as the destination's advertised old object ID.
+
 ## Building and Testing
 
 SwiftGitX is easy to build and test. It requires only Swift, no additional system dependencies.

@@ -73,15 +73,21 @@ class SwiftGitXTest {
     /// Runs a test operation against a temporary localhost Git daemon.
     func withGitDaemon<T>(
         for remote: Repository,
+        receivePack: Bool = false,
         perform: (URL) async throws -> T
     ) async throws -> T {
         let port = try unusedTCPPort()
         let daemon = Process()
         daemon.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        daemon.arguments = [
-            "daemon", "--reuseaddr", "--export-all", "--listen=127.0.0.1",
-            "--port=\(port)", "--base-path=\(remote.path.deletingLastPathComponent().path)",
+        var arguments = ["daemon", "--reuseaddr", "--export-all"]
+        if receivePack {
+            arguments.append("--enable=receive-pack")
+        }
+        arguments += [
+            "--listen=127.0.0.1", "--port=\(port)",
+            "--base-path=\(remote.path.deletingLastPathComponent().path)",
         ]
+        daemon.arguments = arguments
         daemon.standardOutput = FileHandle.nullDevice
         daemon.standardError = FileHandle.nullDevice
         try daemon.run()
