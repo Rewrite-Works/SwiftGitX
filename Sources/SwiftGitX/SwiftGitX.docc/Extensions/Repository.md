@@ -97,4 +97,5 @@
 ### Remote Repository Operations
 
 - ``push(remote:)``
+- ``push(branch:to:strategy:)``
 - ``fetch(remote:)``
